@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog";
 
 const PANEL_WIDTH = 340;
@@ -7,6 +7,7 @@ function SidePanel({ node, isRoot, autoEditTitle, onAutoEditConsumed, onRename, 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const skipBlurRef = useRef(false);
 
   useEffect(() => {
     if (!node) return;
@@ -22,13 +23,23 @@ function SidePanel({ node, isRoot, autoEditTitle, onAutoEditConsumed, onRename, 
   }, [node?.id]);
 
   function commitTitle() {
+    skipBlurRef.current = true;
     if (node) onRename(titleDraft);
     setEditingTitle(false);
   }
 
   function cancelTitle() {
+    skipBlurRef.current = true;
     if (node) setTitleDraft(node.titulo);
     setEditingTitle(false);
+  }
+
+  function handleTitleBlur() {
+    if (skipBlurRef.current) {
+      skipBlurRef.current = false;
+      return;
+    }
+    commitTitle();
   }
 
   const isCompleted = node?.status === "completed";
@@ -79,11 +90,15 @@ function SidePanel({ node, isRoot, autoEditTitle, onAutoEditConsumed, onRename, 
               autoFocus
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
+              onFocus={(e) => e.target.select()}
               onKeyDown={(e) => {
                 if (e.key === "Enter") commitTitle();
-                if (e.key === "Escape") cancelTitle();
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  cancelTitle();
+                }
               }}
-              onBlur={commitTitle}
+              onBlur={handleTitleBlur}
               style={{
                 fontSize: 20,
                 fontWeight: 600,

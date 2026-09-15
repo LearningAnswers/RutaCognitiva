@@ -43,11 +43,15 @@ function toRawNodes(rfNodes) {
   }));
 }
 
+function persist(get) {
+  const { version, areas, nodes } = get();
+  return saveGraph({ version, areas, nodes: toRawNodes(nodes) });
+}
+
 function scheduleAutosave(get) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const { version, areas, nodes } = get();
-    saveGraph({ version, areas, nodes: toRawNodes(nodes) });
+    persist(get);
   }, AUTOSAVE_DELAY);
 }
 
@@ -117,5 +121,10 @@ export const useGraphStore = create((set, get) => ({
       selectedId: state.selectedId === id ? null : state.selectedId,
     }));
     scheduleAutosave(get);
+  },
+
+  flushSave: () => {
+    clearTimeout(saveTimer);
+    return persist(get);
   },
 }));

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ReactFlow, { Background, Controls, ReactFlowProvider, useReactFlow } from "reactflow";
 import "reactflow/dist/style.css";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useGraphStore } from "./store";
 import RutaNode from "./RutaNode";
 import SidePanel from "./SidePanel";
@@ -8,14 +9,50 @@ import SidePanel from "./SidePanel";
 const nodeTypes = { ruta: RutaNode };
 
 function Canvas() {
-  const { nodes, loaded, init, onNodesChange, selectedId, selectNode, addNode, renameNode, toggleStatus, deleteNode } =
-    useGraphStore();
+  const {
+    nodes,
+    loaded,
+    init,
+    onNodesChange,
+    selectedId,
+    selectNode,
+    addNode,
+    renameNode,
+    toggleStatus,
+    deleteNode,
+    flushSave,
+  } = useGraphStore();
   const { screenToFlowPosition } = useReactFlow();
   const [autoEditId, setAutoEditId] = useState(null);
 
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    const appWindow = getCurrentWindow();
+    let unlisten;
+    let cancelled = false;
+
+    appWindow
+      .onCloseRequested(async (event) => {
+        event.preventDefault();
+        try {
+          await flushSave();
+        } finally {
+          await appWindow.destroy();
+        }
+      })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [flushSave]);
 
   useEffect(() => {
     function handleKeyDown(e) {

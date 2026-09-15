@@ -24,12 +24,24 @@ aprendizaje como grafos.
   `allow-write-text-file`) en vez de `fs:default`/`fs:allow-app-*-recursive`,
   para no abrir acceso a AppConfig/AppLocalData/AppCache/AppLog. Ver
   `src-tauri/capabilities/default.json`.
+- La app **no es un diagramador de flujo**: no hay aristas ni conexiones entre
+  nodos (los handles de React Flow están deshabilitados). Las relaciones se
+  declararán como propiedades del nodo en fases posteriores — por ahora cada
+  nodo reserva `"sourceRef": null` para eso.
 - El grafo se persiste en `$APPDATA/grafo.json` (`src/persistence.js`) como un
-  **array con un único objeto** `[{ version, areas, nodes, edges }]` — así lo
-  especificó el modelo de datos original; no es un objeto plano en la raíz.
-- Las posiciones de los nodos (drag) son solo de UI y no se persisten; se
-  recalculan con dagre (`rankdir: "LR"`, `src/layout.js`) cada vez que cambia
-  la estructura del grafo (agregar/eliminar nodo o arista).
+  **array con un único objeto** `[{ version: 2, areas, nodes }]` — sin `edges`.
+  `nodes[].sourceRef` siempre presente (reservado, hoy `null`).
+- Las posiciones de los nodos son solo de UI y no se persisten: al cargar se
+  ubican en una grilla simple por índice (`defaultPosition` en `src/store.js`).
+  No hay layout automático (no se usa `@dagrejs/dagre`, aunque sigue instalado
+  por si se necesita en una fase futura).
+- El autosave tiene debounce de 500ms (`src/store.js`), así que cerrar la
+  ventana justo después de editar podía perder el último cambio. Por eso
+  `Canvas` (en `App.jsx`) intercepta `onCloseRequested` de
+  `@tauri-apps/api/window`, llama a `flushSave()` (guarda ya, sin esperar el
+  debounce) y recién entonces destruye la ventana. Requiere el permiso
+  `core:window:allow-destroy` en `capabilities/default.json` (no viene en
+  `core:default`).
 - Compilar el lado Rust (`cargo check`/`tauri dev`/`tauri build`) requiere
   usar una shell donde el `link.exe` de MSVC Build Tools esté en el PATH
   (PowerShell nativo funciona; Git Bash puede shadowear `link.exe` con el
