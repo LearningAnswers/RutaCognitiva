@@ -3,7 +3,164 @@ import ConfirmDialog from "./ConfirmDialog";
 
 const PANEL_WIDTH = 340;
 
-function SidePanel({ node, isRoot, autoEditTitle, onAutoEditConsumed, onRename, onToggleStatus, onDelete, onClose }) {
+const ADD_RELATION_ERRORS = {
+  cycle: "Esa relación crearía un ciclo.",
+  "root-target": "El nodo raíz no puede tener padres.",
+  duplicate: "Esa relación ya existe.",
+  self: "Un nodo no puede relacionarse consigo mismo.",
+};
+
+function RelationSection({ label, relations, allNodes, excludeId, onNavigate, onRemove, onAdd }) {
+  const [adding, setAdding] = useState(false);
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(null);
+
+  const excludeIds = new Set([excludeId, ...relations.map((r) => r.nodeId)]);
+  const q = query.trim().toLowerCase();
+  const candidates = q
+    ? allNodes.filter((n) => !excludeIds.has(n.id) && n.data.titulo.toLowerCase().includes(q))
+    : [];
+
+  function handlePick(candidateId) {
+    const result = onAdd(candidateId);
+    if (!result.ok) {
+      setError(ADD_RELATION_ERRORS[result.reason] ?? "No se pudo crear la relación.");
+      return;
+    }
+    setQuery("");
+    setAdding(false);
+    setError(null);
+  }
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }}>{label}</div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {relations.map(({ edgeId, nodeId }) => {
+          const n = allNodes.find((x) => x.id === nodeId);
+          return (
+            <span
+              key={edgeId}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "3px 8px",
+                borderRadius: 999,
+                background: "#f3f4f6",
+                fontSize: 12,
+                color: "#374151",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => onNavigate(nodeId)}
+                style={{ border: "none", background: "none", cursor: "pointer", padding: 0, font: "inherit", color: "inherit" }}
+              >
+                {n?.data.titulo ?? nodeId}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmRemove({ edgeId, nodeId })}
+                aria-label="Quitar relación"
+                style={{ border: "none", background: "none", cursor: "pointer", padding: 0, color: "#9ca3af", fontSize: 13, lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </span>
+          );
+        })}
+      </div>
+
+      {adding ? (
+        <div style={{ marginTop: 6 }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                setAdding(false);
+                setQuery("");
+                setError(null);
+              }
+            }}
+            onBlur={() => {
+              if (!query.trim()) setAdding(false);
+            }}
+            placeholder="Buscar nodo..."
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "4px 6px",
+              fontSize: 13,
+              border: "1px solid #d1d5db",
+              borderRadius: 4,
+            }}
+          />
+          {candidates.length > 0 && (
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 4, marginTop: 2, maxHeight: 140, overflowY: "auto", background: "#fff" }}>
+              {candidates.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handlePick(n.id)}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 8px", border: "none", background: "none", cursor: "pointer", fontSize: 13 }}
+                >
+                  {n.data.titulo}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          style={{ marginTop: 6, border: "none", background: "none", color: "#4A90D9", fontSize: 12, cursor: "pointer", padding: 0 }}
+        >
+          + agregar
+        </button>
+      )}
+
+      {error && <div style={{ marginTop: 4, fontSize: 11, color: "#b91c1c" }}>{error}</div>}
+
+      {confirmRemove && (
+        <ConfirmDialog
+          message={`¿Quitar la relación con "${allNodes.find((n) => n.id === confirmRemove.nodeId)?.data.titulo ?? confirmRemove.nodeId}"?`}
+          onConfirm={() => {
+            onRemove(confirmRemove.edgeId);
+            setConfirmRemove(null);
+          }}
+          onCancel={() => setConfirmRemove(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function SidePanel({
+  node,
+  isRoot,
+  nodes,
+  edges,
+  autoEditTitle,
+  onAutoEditConsumed,
+  onNavigate,
+  onRename,
+  onToggleStatus,
+  onDelete,
+  onAddRelation,
+  onRemoveRelation,
+  onClose,
+}) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -43,6 +200,9 @@ function SidePanel({ node, isRoot, autoEditTitle, onAutoEditConsumed, onRename, 
   }
 
   const isCompleted = node?.status === "completed";
+  const parentRelations = node ? edges.filter((e) => e.target === node.id).map((e) => ({ edgeId: e.id, nodeId: e.source })) : [];
+  const childRelations = node ? edges.filter((e) => e.source === node.id).map((e) => ({ edgeId: e.id, nodeId: e.target })) : [];
+  const relationCount = parentRelations.length + childRelations.length;
 
   return (
     <div
@@ -54,6 +214,7 @@ function SidePanel({ node, isRoot, autoEditTitle, onAutoEditConsumed, onRename, 
         borderLeft: "1px solid #e5e7eb",
         boxSizing: "border-box",
         padding: 24,
+        overflowY: "auto",
         display: "flex",
         flexDirection: "column",
         fontFamily: "sans-serif",
@@ -153,6 +314,30 @@ function SidePanel({ node, isRoot, autoEditTitle, onAutoEditConsumed, onRename, 
             )}
           </div>
 
+          {!isRoot && (
+            <RelationSection
+              key={`padres-${node.id}`}
+              label="Padres"
+              relations={parentRelations}
+              allNodes={nodes}
+              excludeId={node.id}
+              onNavigate={onNavigate}
+              onRemove={onRemoveRelation}
+              onAdd={(candidateId) => onAddRelation(candidateId, node.id)}
+            />
+          )}
+
+          <RelationSection
+            key={`hijos-${node.id}`}
+            label="Hijos"
+            relations={childRelations}
+            allNodes={nodes}
+            excludeId={node.id}
+            onNavigate={onNavigate}
+            onRemove={onRemoveRelation}
+            onAdd={(candidateId) => onAddRelation(node.id, candidateId)}
+          />
+
           <div style={{ marginTop: "auto", paddingTop: 24 }}>
             {isRoot ? (
               <div style={{ fontSize: 12, color: "#9ca3af" }}>El nodo raíz no se puede eliminar.</div>
@@ -179,7 +364,7 @@ function SidePanel({ node, isRoot, autoEditTitle, onAutoEditConsumed, onRename, 
 
       {confirmingDelete && node && (
         <ConfirmDialog
-          message={`¿Eliminar "${node.titulo}"?`}
+          message={`¿Eliminar "${node.titulo}"? Se eliminarán también sus ${relationCount} relación(es).`}
           onConfirm={() => {
             setConfirmingDelete(false);
             onDelete();

@@ -7,6 +7,10 @@
     <title>RutaCognitiva</title>
     <style>
       html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+      /* Layout automatico (dagre): las posiciones cambian solas al agregar
+         o quitar nodos/relaciones; esta transicion es lo que hace que se
+         vean deslizarse en vez de saltar de golpe. */
+      .react-flow__node { transition: transform 300ms ease; }
     </style>
   </head>
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import ReactFlow, { Background, Controls, ReactFlowProvider, useReactFlow } from "reactflow";
+import ReactFlow, { Background, Controls, MarkerType } from "reactflow";
 import "reactflow/dist/style.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useGraphStore } from "./store";
@@ -7,10 +7,15 @@ import RutaNode from "./RutaNode";
 import SidePanel from "./SidePanel";
 
 const nodeTypes = { ruta: RutaNode };
+const defaultEdgeOptions = {
+  markerEnd: { type: MarkerType.ArrowClosed, color: "#9ca3af" },
+  style: { stroke: "#9ca3af" },
+};
 
-function Canvas() {
+function App() {
   const {
     nodes,
+    edges,
     loaded,
     init,
     onNodesChange,
@@ -20,9 +25,10 @@ function Canvas() {
     renameNode,
     toggleStatus,
     deleteNode,
+    addRelation,
+    removeRelation,
     flushSave,
   } = useGraphStore();
-  const { screenToFlowPosition } = useReactFlow();
   const [autoEditId, setAutoEditId] = useState(null);
 
   useEffect(() => {
@@ -67,8 +73,7 @@ function Canvas() {
     // target real suele ser ese svg/rect, no el div .react-flow__pane.
     if (!e.target.closest(".react-flow__pane")) return;
     if (e.target.closest(".react-flow__node")) return;
-    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-    const id = addNode(position);
+    const id = addNode();
     setAutoEditId(id);
   }
 
@@ -89,12 +94,15 @@ function Canvas() {
       >
         <ReactFlow
           nodes={nodes}
+          edges={edges}
           nodeTypes={nodeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
           onNodesChange={onNodesChange}
           onNodeClick={(_e, node) => selectNode(node.id)}
           onPaneClick={() => selectNode(null)}
           elementsSelectable={false}
           nodesConnectable={false}
+          nodesDraggable={false}
           zoomOnDoubleClick={false}
           deleteKeyCode={null}
           panOnScroll
@@ -111,22 +119,19 @@ function Canvas() {
       <SidePanel
         node={panelNode}
         isRoot={selectedNode?.data.isRoot ?? false}
+        nodes={nodes}
+        edges={edges}
         autoEditTitle={selectedNode?.id === autoEditId}
         onAutoEditConsumed={() => setAutoEditId(null)}
         onClose={() => selectNode(null)}
+        onNavigate={(id) => selectNode(id)}
         onRename={(titulo) => selectedNode && renameNode(selectedNode.id, titulo)}
         onToggleStatus={() => selectedNode && toggleStatus(selectedNode.id)}
         onDelete={() => selectedNode && deleteNode(selectedNode.id)}
+        onAddRelation={addRelation}
+        onRemoveRelation={removeRelation}
       />
     </div>
-  );
-}
-
-function App() {
-  return (
-    <ReactFlowProvider>
-      <Canvas />
-    </ReactFlowProvider>
   );
 }
 
