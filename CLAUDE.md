@@ -1,7 +1,24 @@
 # RutaCognitiva
 
 App de escritorio (Tauri 2 + React 18 + Vite) para visualizar rutas de
-aprendizaje como grafos.
+aprendizaje como grafos. Stack: `reactflow` v11 (paquete legado, **no**
+`@xyflow/react`) + `@dagrejs/dagre` + Zustand. Plataforma validada: solo
+Windows — no afirmar nada sobre macOS/Linux sin probarlo ahí.
+
+## Skills de este repo (`.claude/skills/`)
+- `tauri-source-verification`: usar siempre que se toquen rutas de datos,
+  capabilities/permisos o eventos de ventana — verificar en el código fuente
+  instalado, no en memoria/blogs. Hallazgos confirmados en
+  `references/verificado.md`.
+- `windows-dev-env`: diagnóstico de puertos/procesos zombie antes de matar
+  nada (`scripts/dev-status.ps1`). Nunca matar un proceso solo por el nombre.
+- `third-party-css-debug`: procedimiento para bugs de layout/eventos causados
+  por el DOM/CSS de React Flow — identificar el elemento real antes de tocar
+  estilos.
+- `verification-protocol`: formato de cierre de tarea (verificado con
+  evidencia / requiere validación humana / no verificado).
+- Hallazgos nuevos van a `docs/HALLAZGOS.md`; un patrón que se repite una
+  segunda vez se promueve a skill, script o test.
 
 ## Convenciones del proyecto
 
@@ -46,3 +63,11 @@ aprendizaje como grafos.
   usar una shell donde el `link.exe` de MSVC Build Tools esté en el PATH
   (PowerShell nativo funciona; Git Bash puede shadowear `link.exe` con el
   suyo propio y romper el link).
+
+## Forma de trabajo
+- Las restricciones de cada fase (archivos máximos, dependencias permitidas)
+  vienen en el prompt de esa fase y mandan sobre todo lo demás.
+- Instalar dependencias nuevas está prohibido salvo que la fase lo autorice.
+- Cierre de tarea siguiendo la skill `verification-protocol`.
+- Commits: `fase-<id>: <qué> — <por qué>` (o `chore: ...` fuera de fase). Un
+  commit por cambio lógico.
