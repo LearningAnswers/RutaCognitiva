@@ -63,7 +63,10 @@ function Canvas() {
   }, [selectNode]);
 
   function handleDoubleClick(e) {
-    if (!e.target.classList.contains("react-flow__pane")) return;
+    // El Background es un <svg> dibujado encima del pane, así que el
+    // target real suele ser ese svg/rect, no el div .react-flow__pane.
+    if (!e.target.closest(".react-flow__pane")) return;
+    if (e.target.closest(".react-flow__node")) return;
     const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
     const id = addNode(position);
     setAutoEditId(id);
@@ -79,8 +82,11 @@ function Canvas() {
   }
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex" }}>
-      <div style={{ flex: 1, minWidth: 0 }} onDoubleClick={handleDoubleClick}>
+    <div style={{ width: "100%", height: "100%", display: "flex", overflow: "hidden" }}>
+      <div
+        style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}
+        onDoubleClick={handleDoubleClick}
+      >
         <ReactFlow
           nodes={nodes}
           nodeTypes={nodeTypes}
@@ -89,7 +95,12 @@ function Canvas() {
           onPaneClick={() => selectNode(null)}
           elementsSelectable={false}
           nodesConnectable={false}
+          zoomOnDoubleClick={false}
           deleteKeyCode={null}
+          panOnScroll
+          panOnDrag
+          zoomOnPinch
+          zoomOnScroll={false}
           fitView
         >
           <Background />
