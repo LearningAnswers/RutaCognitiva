@@ -6,6 +6,7 @@ export const ROOT_ID = "aldo";
 const AUTOSAVE_DELAY = 500;
 
 let saveTimer = null;
+let saveQueue = Promise.resolve();
 
 function genId() {
   return `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -43,9 +44,20 @@ function toRawNodes(rfNodes) {
   }));
 }
 
+// Encadena cada guardado sobre el anterior: si un autosave todavia esta
+// escribiendo en disco cuando dispara el siguiente (o un flushSave al
+// cerrar la ventana), evita que dos escrituras concurrentes se crucen.
+// Un fallo (permiso revocado, disco lleno) se registra en consola en vez
+// de quedar como una promesa rechazada sin manejar.
 function persist(get) {
   const { version, areas, nodes } = get();
-  return saveGraph({ version, areas, nodes: toRawNodes(nodes) });
+  const snapshot = { version, areas, nodes: toRawNodes(nodes) };
+  saveQueue = saveQueue.catch(() => {}).then(() =>
+    saveGraph(snapshot).catch((err) => {
+      console.error("No se pudo guardar grafo.json:", err);
+    })
+  );
+  return saveQueue;
 }
 
 function scheduleAutosave(get) {
