@@ -33,7 +33,16 @@ function RutaNode({ data, selected }) {
     style.outlineOffset = 2;
   }
 
-  return <div style={style}>{titulo}</div>;
+  // "nopan": con nodesDraggable=false, React Flow deja de agregar esta
+  // clase automaticamente (solo la agrega si el nodo es arrastrable), asi
+  // que un click-y-arrastre que empieza sobre el nodo cae al pane y
+  // panea todo el canvas. Se agrega a mano porque es exactamente el
+  // escape hatch que documenta el propio código fuente de la libreria.
+  return (
+    <div className="nopan" style={style}>
+      {titulo}
+    </div>
+  );
 }
 
 export default RutaNode;

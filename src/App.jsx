@@ -7,9 +7,16 @@ import RutaNode from "./RutaNode";
 import SidePanel from "./SidePanel";
 
 const nodeTypes = { ruta: RutaNode };
+
+// El gris por defecto de React Flow (#9ca3af) queda casi identico al
+// color de los puntos del <Background> (#91919a) y el stroke-width
+// default es 1px: la arista se pierde contra el fondo. Se sube el
+// contraste y el grosor base.
+const EDGE_COLOR = "#6b7280";
+const EDGE_COLOR_HIGHLIGHT = "#4A90D9";
 const defaultEdgeOptions = {
-  markerEnd: { type: MarkerType.ArrowClosed, color: "#9ca3af" },
-  style: { stroke: "#9ca3af" },
+  markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR },
+  style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
 };
 
 function App() {
@@ -82,6 +89,22 @@ function App() {
     ? { id: selectedNode.id, titulo: selectedNode.data.titulo, status: selectedNode.data.status }
     : null;
 
+  // Resalta las relaciones del nodo seleccionado (ademas de subir el
+  // contraste base) para que sea obvio cual arista corresponde a cual
+  // chip de Padres/Hijos en el panel.
+  const displayEdges = selectedId
+    ? edges.map((e) =>
+        e.source === selectedId || e.target === selectedId
+          ? {
+              ...e,
+              style: { stroke: EDGE_COLOR_HIGHLIGHT, strokeWidth: 2.5 },
+              markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR_HIGHLIGHT },
+              zIndex: 1,
+            }
+          : e
+      )
+    : edges;
+
   if (!loaded) {
     return <div style={{ width: "100%", height: "100%" }} />;
   }
@@ -94,7 +117,7 @@ function App() {
       >
         <ReactFlow
           nodes={nodes}
-          edges={edges}
+          edges={displayEdges}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           onNodesChange={onNodesChange}
