@@ -67,3 +67,35 @@ es conocimiento en riesgo.
   `fase-1-grafo`)
 - **Guardia:** comentario en `ConfirmDialog.jsx`
 - **Costo de redescubrirlo:** bajo (UX menor, no perdida de datos)
+
+### H-007 · Las aristas no se dibujaban: nodos custom sin `<Handle>` · 2026-09-20
+- **Sintoma:** las relaciones se crean y persisten bien (`grafo.json` con `edges` validos, ids que coinciden
+  con `nodes[]`), el layout dagre las refleja, pero en el canvas **no aparece ninguna linea**; los nodos si.
+  Parece un bug de estilo/z-index y no lo es.
+- **Causa raiz:** `RutaNode.jsx` no tenia ningun `<Handle>` (se quitaron al hacer que la app "no sea un
+  diagramador de flujo" y Fase 1B reintrodujo `edges` sin devolverlos; el spec pedia "dibujar aristas" y
+  "sin handles" a la vez). En `@reactflow/core`, `EdgeRenderer` resuelve `sourceHandle`/`targetHandle` con
+  `getHandle(bounds)`; sin handles en el DOM `getHandleBounds` devuelve `null`, `getHandle` devuelve `null` y
+  la arista se descarta con `return null` (error interno 008), en silencio. Verificado en
+  `node_modules/@reactflow/core/dist/esm/index.js` (`getHandleBounds` ~L2579, `getHandle` ~L3381,
+  `EdgeRenderer` ~L3620) y **renderizando la misma pagina en Chrome headless con y sin handles**:
+  sin handles 2 nodos/0 handles/0 aristas; con handles 2 nodos/4 handles/1 arista/1 flecha.
+- **Fix:** un `<Handle type="target" position={Left}>` y un `<Handle type="source" position={Right}>` en
+  `RutaNode.jsx`, invisibles (`opacity:0`, **nunca** `display:none`: rompe la medicion), `pointerEvents:none`,
+  `isConnectable={false}`. `nodesConnectable={false}` sigue impidiendo crear relaciones arrastrando · commit
+  `4f3e5c5` (rama `fase-1-grafo`)
+- **Guardia:** comentario en `RutaNode.jsx` + regla en `CLAUDE.md` + `.claude/skills/react-flow` (regla 7,
+  "al ocultar handles usa opacity:0, nunca display:none")
+- **Costo de redescubrirlo:** alto (nada falla ni loguea en la UI; los datos y el layout son correctos)
+- **Como diagnosticar la proxima vez:** abrir DevTools y buscar el error `008` de React Flow; o
+  `document.querySelectorAll('.react-flow__handle').length` (0 = este bug).
+
+### H-008 · Arrastrar desde un nodo paneaba todo el canvas · 2026-09-20
+- **Sintoma:** click-y-arrastre sobre un nodo desplaza el lienzo entero en vez de no hacer nada.
+- **Causa raiz:** `NodeWrapper` solo agrega la clase `nopan` cuando el nodo es arrastrable
+  (`{ [noPanClassName]: isDraggable }`, `@reactflow/core` ~L3009-3015). Con `nodesDraggable={false}` el nodo
+  nunca la recibe y el filtro de pan de d3-zoom (`isWrappedWithClass(event, 'nopan')`, ~L2152) no lo excluye.
+- **Fix:** `className="nopan"` puesto a mano en el div de `RutaNode.jsx` (escape hatch que documenta la propia
+  libreria) · commit `c13ae0e`
+- **Guardia:** comentario en `RutaNode.jsx` + regla en `CLAUDE.md`
+- **Costo de redescubrirlo:** medio
