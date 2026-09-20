@@ -24,17 +24,32 @@ aprendizaje como grafos.
   `allow-write-text-file`) en vez de `fs:default`/`fs:allow-app-*-recursive`,
   para no abrir acceso a AppConfig/AppLocalData/AppCache/AppLog. Ver
   `src-tauri/capabilities/default.json`.
-- La app **no es un diagramador de flujo**: no hay aristas ni conexiones entre
-  nodos (los handles de React Flow están deshabilitados). Las relaciones se
-  declararán como propiedades del nodo en fases posteriores — por ahora cada
-  nodo reserva `"sourceRef": null` para eso.
+- La app **no es un diagramador de flujo**: las relaciones Padre/Hijo se crean
+  y quitan desde el panel lateral (chips + autocompletado), nunca arrastrando
+  líneas entre nodos (`nodesConnectable={false}`, `nodesDraggable={false}`).
+  Viven exclusivamente en `edges[]` (`{id, source, target}`, source=padre);
+  es un DAG (múltiples padres/hijos), con validación de ciclos en el store y
+  "nadie puede ser padre de `aldo`".
+- **`RutaNode.jsx` DEBE llevar un `<Handle type="target">` y un
+  `<Handle type="source">`, aunque sean invisibles.** React Flow no dibuja una
+  arista si alguno de sus nodos no tiene handle medido en el DOM: descarta la
+  arista en silencio (`EdgeRenderer`, error interno 008, `return null`) y los
+  nodos sí se ven, así que parece un bug de estilo/z-index cuando no lo es.
+  Por eso los handles son `opacity: 0` (NUNCA `display: none`, rompe la
+  medición) + `pointerEvents: none` + `isConnectable={false}`. Verificado en
+  `@reactflow/core` (`getHandle`/`getHandleBounds`) y renderizando en Chrome
+  headless: sin handles 0 aristas en el DOM, con handles 1. Ver H-007 en
+  `docs/HALLAZGOS.md` (rama `chore/agent-tooling`).
+- El nodo también lleva `className="nopan"`: con `nodesDraggable={false}` React
+  Flow deja de agregar esa clase solo, y un arrastre que empieza sobre un nodo
+  paneaba todo el canvas.
 - El grafo se persiste en `$APPDATA/grafo.json` (`src/persistence.js`) como un
-  **array con un único objeto** `[{ version: 2, areas, nodes }]` — sin `edges`.
-  `nodes[].sourceRef` siempre presente (reservado, hoy `null`).
-- Las posiciones de los nodos son solo de UI y no se persisten: al cargar se
-  ubican en una grilla simple por índice (`defaultPosition` en `src/store.js`).
-  No hay layout automático (no se usa `@dagrejs/dagre`, aunque sigue instalado
-  por si se necesita en una fase futura).
+  **array con un único objeto** `[{ version: 3, areas, nodes, edges }]`. Sin
+  `sourceRef` (lo reemplazó `edges[]`); los archivos v2 se migran al leer.
+- Las posiciones NO se persisten: `src/layout.js` las calcula con dagre
+  (`rankdir: "LR"`) en cada cambio estructural, determinista (ids ordenados) y
+  memoizado por firma de nodos+relaciones; los nodos sin relaciones van en una
+  fila aparte. El deslizamiento de 300ms es una regla CSS en `index.html`.
 - El autosave tiene debounce de 500ms (`src/store.js`), así que cerrar la
   ventana justo después de editar podía perder el último cambio. Por eso
   `Canvas` (en `App.jsx`) intercepta `onCloseRequested` de

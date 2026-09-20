@@ -1,8 +1,22 @@
+import { Handle, Position } from "reactflow";
+
+// React Flow NO dibuja una arista si alguno de sus dos nodos no tiene un
+// <Handle> del tipo correspondiente: EdgeRenderer busca los handles medidos
+// en el DOM y, si `sourceHandle`/`targetHandle` quedan en null, descarta la
+// arista en silencio (error interno 008). Por eso los nodos llevan un
+// handle "source" (derecha, el hijo cuelga de aqui) y uno "target"
+// (izquierda) para el layout LR. Son solo puntos de anclaje: invisibles
+// (opacity:0, NO display:none, que rompe la medicion) y sin interaccion.
+// Que nadie pueda crear relaciones arrastrando lo sigue garantizando
+// nodesConnectable={false} en <ReactFlow>.
+const anchorStyle = { opacity: 0, pointerEvents: "none" };
+
 function RutaNode({ data, selected }) {
   const { titulo, status, isRoot } = data;
   const isCompleted = status === "completed";
 
   const style = {
+    position: "relative",
     padding: "10px 16px",
     minWidth: 140,
     borderRadius: 8,
@@ -40,7 +54,9 @@ function RutaNode({ data, selected }) {
   // escape hatch que documenta el propio código fuente de la libreria.
   return (
     <div className="nopan" style={style}>
+      <Handle type="target" position={Position.Left} isConnectable={false} style={anchorStyle} />
       {titulo}
+      <Handle type="source" position={Position.Right} isConnectable={false} style={anchorStyle} />
     </div>
   );
 }
