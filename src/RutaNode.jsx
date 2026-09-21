@@ -11,8 +11,11 @@ import { Handle, Position } from "reactflow";
 // nodesConnectable={false} en <ReactFlow>.
 const anchorStyle = { opacity: 0, pointerEvents: "none" };
 
+// areaColor llega SIEMPRE como #RRGGBB valido (persistence.js y el store lo
+// garantizan), por eso se le puede pegar un sufijo de alfa de 2 digitos.
+// dimmed lo calcula App.jsx para el resaltado por area (el raiz nunca).
 function RutaNode({ data, selected }) {
-  const { titulo, status, isRoot } = data;
+  const { titulo, status, isRoot, areaColor, dimmed } = data;
   const isCompleted = status === "completed";
 
   const style = {
@@ -23,15 +26,24 @@ function RutaNode({ data, selected }) {
     fontSize: 13,
     textAlign: "center",
     fontFamily: "sans-serif",
-    transition: "background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
+    transition:
+      "background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, opacity 250ms ease",
     cursor: "pointer",
+    opacity: dimmed ? 0.25 : 1,
   };
 
   if (isRoot) {
     style.background = "#ffffff";
     style.border = "3px solid #374151";
     style.color = "#1f2937";
+  } else if (isCompleted && areaColor) {
+    // Iluminado con el color del area: tinte suave, borde solido y glow.
+    style.background = `${areaColor}1f`;
+    style.border = `1.5px solid ${areaColor}`;
+    style.color = "#1f2937";
+    style.boxShadow = `0 0 0 3px ${areaColor}22, 0 0 14px ${areaColor}66`;
   } else if (isCompleted) {
+    // Completado sin area: acento neutro (el ambar de siempre).
     style.background = "#fff7ed";
     style.border = "1.5px solid #d97706";
     style.color = "#7c2d12";
@@ -40,6 +52,8 @@ function RutaNode({ data, selected }) {
     style.background = "#ffffff";
     style.border = "1px solid #9ca3af";
     style.color = "#374151";
+    // Pendiente con area: franja izquierda del color del area.
+    if (areaColor) style.borderLeft = `5px solid ${areaColor}`;
   }
 
   if (selected) {

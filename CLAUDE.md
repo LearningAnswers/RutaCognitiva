@@ -46,6 +46,22 @@ aprendizaje como grafos.
 - El grafo se persiste en `$APPDATA/grafo.json` (`src/persistence.js`) como un
   **array con un único objeto** `[{ version: 3, areas, nodes, edges }]`. Sin
   `sourceRef` (lo reemplazó `edges[]`); los archivos v2 se migran al leer.
+- **Áreas de conocimiento** (Fase 2): `areas[]` = `{id, nombre, color}` (color
+  siempre `#RRGGBB`) y `areaId` por nodo (`null` = sin área; el raíz nunca
+  tiene). `persistence.js` es quien garantiza la validez al leer Y al guardar
+  (descarta áreas sin id/nombre o repetidas, un color inválido cae al gris
+  `#6b7280`, un `areaId` que apunta a un área inexistente pasa a `null`), así
+  que la UI puede pegarle un sufijo de alfa al color (`${color}1f`). El set de
+  ejemplo (Estadística, Programación, Matemáticas, Idiomas) se siembra SOLO al
+  crear un `grafo.json` nuevo; un archivo existente nunca se toca. Eliminar un
+  área deja a sus nodos en `areaId: null`, jamás los borra. Sin cambio de
+  versión: el shape ya existía (sigue v3).
+- El resaltado por área (`highlightedAreaId` en el store) es solo visual: no se
+  persiste, no toca el layout, y `App.jsx` deriva `data.dimmed`/`areaColor` y
+  la opacidad de las aristas con `useMemo` (el raíz nunca se atenúa; una
+  arista queda plena solo si sus dos extremos están encendidos). Esc quita el
+  resaltado antes de cerrar el panel. Todo estilo de arista lleva `transition`
+  siempre, si no el desvanecido solo animaría en un sentido.
 - Las posiciones NO se persisten: `src/layout.js` las calcula con dagre
   (`rankdir: "LR"`) en cada cambio estructural, determinista (ids ordenados) y
   memoizado por firma de nodos+relaciones; los nodos sin relaciones van en una

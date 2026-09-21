@@ -146,15 +146,123 @@ function RelationSection({ label, relations, allNodes, excludeId, onNavigate, on
   );
 }
 
+// Selector de area con la muestra de color de cada opcion (un <select>
+// nativo no puede mostrar colores). La lista va en flujo normal, no
+// flotante, para no quedar recortada por el scroll del panel.
+function AreaSelect({ areas, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const current = areas.find((a) => a.id === value) ?? null;
+
+  function choose(areaId) {
+    onChange(areaId);
+    setOpen(false);
+  }
+
+  const optionStyle = (selected) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    padding: "6px 8px",
+    border: "none",
+    background: selected ? "#f3f4f6" : "none",
+    cursor: "pointer",
+    textAlign: "left",
+    fontFamily: "inherit",
+    fontSize: 13,
+    color: "#374151",
+  });
+
+  const swatch = (color) => (
+    <span
+      style={{
+        width: 12,
+        height: 12,
+        borderRadius: 3,
+        flexShrink: 0,
+        background: color ?? "transparent",
+        border: color ? "none" : "1px dashed #9ca3af",
+      }}
+    />
+  );
+
+  return (
+    <div
+      style={{ marginTop: 20 }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+      }}
+    >
+      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }}>Área</div>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        style={{
+          ...optionStyle(false),
+          border: "1px solid #d1d5db",
+          borderRadius: 6,
+          background: "#ffffff",
+        }}
+      >
+        {swatch(current?.color)}
+        <span style={{ flex: 1 }}>{current ? current.nombre : "Sin área"}</span>
+        <span style={{ color: "#9ca3af", fontSize: 11 }}>{open ? "▴" : "▾"}</span>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          style={{
+            marginTop: 4,
+            border: "1px solid #e5e7eb",
+            borderRadius: 6,
+            maxHeight: 180,
+            overflowY: "auto",
+            background: "#ffffff",
+          }}
+        >
+          <button type="button" role="option" aria-selected={!current} onClick={() => choose(null)} style={optionStyle(!current)}>
+            {swatch(null)}
+            <span>Sin área</span>
+          </button>
+          {areas.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="option"
+              aria-selected={a.id === value}
+              onClick={() => choose(a.id)}
+              style={optionStyle(a.id === value)}
+            >
+              {swatch(a.color)}
+              <span>{a.nombre}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SidePanel({
   node,
   isRoot,
   nodes,
   edges,
+  areas,
   autoEditTitle,
   onAutoEditConsumed,
   onNavigate,
   onRename,
+  onSetArea,
   onToggleStatus,
   onDelete,
   onAddRelation,
@@ -288,6 +396,8 @@ function SidePanel({
               {node.titulo}
             </h2>
           )}
+
+          {!isRoot && <AreaSelect key={node.id} areas={areas} value={node.areaId} onChange={onSetArea} />}
 
           <div style={{ marginTop: 28 }}>
             <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6, textTransform: "uppercase" }}>

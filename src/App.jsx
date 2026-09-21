@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactFlow, { Background, Controls, MarkerType } from "reactflow";
 import "reactflow/dist/style.css";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useGraphStore } from "./store";
+import { useGraphStore, ROOT_ID } from "./store";
 import RutaNode from "./RutaNode";
 import SidePanel from "./SidePanel";
+import AreaMenu from "./AreaMenu";
 
 const nodeTypes = { ruta: RutaNode };
 
@@ -19,14 +20,19 @@ const defaultEdgeOptions = {
   style: { stroke: EDGE_COLOR, strokeWidth: 1.5 },
 };
 
+const DIM_OPACITY = 0.25;
+const DIM_TRANSITION = "opacity 250ms ease";
+
 function App() {
   const {
     nodes,
     edges,
+    areas,
     loaded,
     init,
     onNodesChange,
     selectedId,
+    highlightedAreaId,
     selectNode,
     addNode,
     renameNode,
@@ -34,6 +40,12 @@ function App() {
     deleteNode,
     addRelation,
     removeRelation,
+    addArea,
+    updateArea,
+    deleteArea,
+    setNodeArea,
+    toggleHighlight,
+    clearHighlight,
     flushSave,
   } = useGraphStore();
   const [autoEditId, setAutoEditId] = useState(null);
@@ -67,13 +79,17 @@ function App() {
     };
   }, [flushSave]);
 
+  // Esc: si hay un area resaltada quita solo el resaltado; si no, cierra el
+  // panel. (Los dialogos y los inputs en edicion atrapan su propio Esc antes.)
   useEffect(() => {
     function handleKeyDown(e) {
-      if (e.key === "Escape") selectNode(null);
+      if (e.key !== "Escape") return;
+      if (highlightedAreaId) clearHighlight();
+      else selectNode(null);
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectNode]);
+  }, [highlightedAreaId, clearHighlight, selectNode]);
 
   function handleDoubleClick(e) {
     // El Background es un <svg> dibujado encima del pane, así que el
@@ -84,26 +100,75 @@ function App() {
     setAutoEditId(id);
   }
 
+  const areaColorById = useMemo(() => new Map(areas.map((a) => [a.id, a.color])), [areas]);
+
+  const nodeCounts = useMemo(() => {
+    const counts = {};
+    for (const n of nodes) {
+      const areaId = n.data.areaId;
+      if (areaId) counts[areaId] = (counts[areaId] ?? 0) + 1;
+    }
+    return counts;
+  }, [nodes]);
+
+  // Nodos "encendidos" mientras hay un area resaltada: los de esa area y el
+  // raiz (Aldo nunca se atenua). null = no hay resaltado.
+  const litIds = useMemo(() => {
+    if (!highlightedAreaId) return null;
+    const lit = new Set();
+    for (const n of nodes) {
+      if (n.id === ROOT_ID || n.data.areaId === highlightedAreaId) lit.add(n.id);
+    }
+    return lit;
+  }, [nodes, highlightedAreaId]);
+
+  // El color del area y el atenuado son solo de presentacion: se derivan aqui
+  // y no se guardan en el store ni afectan el layout.
+  const displayNodes = useMemo(
+    () =>
+      nodes.map((n) => ({
+        ...n,
+        data: {
+          ...n.data,
+          areaColor: n.data.areaId ? areaColorById.get(n.data.areaId) ?? null : null,
+          dimmed: litIds ? !litIds.has(n.id) : false,
+        },
+      })),
+    [nodes, areaColorById, litIds]
+  );
+
+  // Resalta las relaciones del nodo seleccionado (azul) y, con un area
+  // resaltada, atenua las aristas cuyos dos extremos no estan encendidos. El
+  // estilo se define completo en cada arista (siempre con `transition`, si
+  // no el desvanecido solo animaria en un sentido).
+  const displayEdges = useMemo(
+    () =>
+      edges.map((e) => {
+        const touchesSelected = selectedId && (e.source === selectedId || e.target === selectedId);
+        const dimmed = litIds ? !(litIds.has(e.source) && litIds.has(e.target)) : false;
+        const base = touchesSelected
+          ? { stroke: EDGE_COLOR_HIGHLIGHT, strokeWidth: 2.5 }
+          : { stroke: EDGE_COLOR, strokeWidth: 1.5 };
+        return {
+          ...e,
+          style: { ...base, opacity: dimmed ? DIM_OPACITY : 1, transition: DIM_TRANSITION },
+          ...(touchesSelected
+            ? { markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR_HIGHLIGHT }, zIndex: 1 }
+            : {}),
+        };
+      }),
+    [edges, selectedId, litIds]
+  );
+
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
   const panelNode = selectedNode
-    ? { id: selectedNode.id, titulo: selectedNode.data.titulo, status: selectedNode.data.status }
+    ? {
+        id: selectedNode.id,
+        titulo: selectedNode.data.titulo,
+        status: selectedNode.data.status,
+        areaId: selectedNode.data.areaId,
+      }
     : null;
-
-  // Resalta las relaciones del nodo seleccionado (ademas de subir el
-  // contraste base) para que sea obvio cual arista corresponde a cual
-  // chip de Padres/Hijos en el panel.
-  const displayEdges = selectedId
-    ? edges.map((e) =>
-        e.source === selectedId || e.target === selectedId
-          ? {
-              ...e,
-              style: { stroke: EDGE_COLOR_HIGHLIGHT, strokeWidth: 2.5 },
-              markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_COLOR_HIGHLIGHT },
-              zIndex: 1,
-            }
-          : e
-      )
-    : edges;
 
   if (!loaded) {
     return <div style={{ width: "100%", height: "100%" }} />;
@@ -111,12 +176,22 @@ function App() {
 
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", overflow: "hidden" }}>
+      <AreaMenu
+        areas={areas}
+        nodeCounts={nodeCounts}
+        highlightedAreaId={highlightedAreaId}
+        onToggleHighlight={toggleHighlight}
+        onAdd={addArea}
+        onUpdate={updateArea}
+        onDelete={deleteArea}
+      />
+
       <div
         style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}
         onDoubleClick={handleDoubleClick}
       >
         <ReactFlow
-          nodes={nodes}
+          nodes={displayNodes}
           edges={displayEdges}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
@@ -144,11 +219,13 @@ function App() {
         isRoot={selectedNode?.data.isRoot ?? false}
         nodes={nodes}
         edges={edges}
+        areas={areas}
         autoEditTitle={selectedNode?.id === autoEditId}
         onAutoEditConsumed={() => setAutoEditId(null)}
         onClose={() => selectNode(null)}
         onNavigate={(id) => selectNode(id)}
         onRename={(titulo) => selectedNode && renameNode(selectedNode.id, titulo)}
+        onSetArea={(areaId) => selectedNode && setNodeArea(selectedNode.id, areaId)}
         onToggleStatus={() => selectedNode && toggleStatus(selectedNode.id)}
         onDelete={() => selectedNode && deleteNode(selectedNode.id)}
         onAddRelation={addRelation}

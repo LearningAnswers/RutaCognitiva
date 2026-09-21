@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { applyNodeChanges } from "reactflow";
-import { loadGraph, saveGraph } from "./persistence";
+import { loadGraph, saveGraph, isHexColor, DEFAULT_AREA_COLOR } from "./persistence";
 import { computeLayout } from "./layout";
 
 export const ROOT_ID = "aldo";
@@ -98,6 +98,8 @@ export const useGraphStore = create((set, get) => ({
   nodes: [],
   edges: [],
   selectedId: null,
+  // Resaltado por area: solo visual, NO se persiste ni toca el layout.
+  highlightedAreaId: null,
   loaded: false,
 
   init: async () => {
@@ -194,6 +196,57 @@ export const useGraphStore = create((set, get) => ({
     set({ nodes: relayout(get().nodes, edges), edges });
     scheduleAutosave(get);
   },
+
+  // ---- Areas de conocimiento (ninguna de estas acciones toca el layout) ----
+
+  addArea: (nombre, color) => {
+    const trimmed = (nombre ?? "").trim();
+    if (!trimmed) return null;
+    const id = genId("a");
+    const area = { id, nombre: trimmed, color: isHexColor(color) ? color : DEFAULT_AREA_COLOR };
+    set({ areas: [...get().areas, area] });
+    scheduleAutosave(get);
+    return id;
+  },
+
+  updateArea: (id, { nombre, color }) => {
+    const trimmed = (nombre ?? "").trim();
+    if (!trimmed) return false;
+    set({
+      areas: get().areas.map((a) =>
+        a.id === id ? { ...a, nombre: trimmed, color: isHexColor(color) ? color : a.color } : a
+      ),
+    });
+    scheduleAutosave(get);
+    return true;
+  },
+
+  // Nunca elimina nodos: los del area quedan con areaId null.
+  deleteArea: (id) => {
+    set((state) => ({
+      areas: state.areas.filter((a) => a.id !== id),
+      nodes: state.nodes.map((n) => (n.data.areaId === id ? { ...n, data: { ...n.data, areaId: null } } : n)),
+      highlightedAreaId: state.highlightedAreaId === id ? null : state.highlightedAreaId,
+    }));
+    scheduleAutosave(get);
+  },
+
+  // areaId null = "Sin area". El nodo raiz no tiene area.
+  setNodeArea: (nodeId, areaId) => {
+    if (nodeId === ROOT_ID) return;
+    if (areaId !== null && !get().areas.some((a) => a.id === areaId)) return;
+    set({
+      nodes: get().nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, areaId } } : n)),
+    });
+    scheduleAutosave(get);
+  },
+
+  // Solo un area resaltada a la vez; volver a pulsar la misma la apaga.
+  toggleHighlight: (areaId) => {
+    set({ highlightedAreaId: get().highlightedAreaId === areaId ? null : areaId });
+  },
+
+  clearHighlight: () => set({ highlightedAreaId: null }),
 
   flushSave: () => {
     clearTimeout(saveTimer);
